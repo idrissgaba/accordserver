@@ -1,7 +1,9 @@
 use crate::error::AppError;
 use livekit_api::access_token::{AccessToken, VideoGrants};
-use livekit_api::services::room::{CreateRoomOptions, RoomClient};
+use livekit_api::services::room::{CreateRoomOptions, RoomClient, UpdateParticipantOptions};
 use std::sync::Arc;
+
+use crate::voice::moderation::MediaPolicy;
 
 #[derive(Clone)]
 pub struct LiveKitClient {
@@ -41,6 +43,18 @@ impl LiveKitClient {
         display_name: &str,
         channel_id: &str,
     ) -> Result<String, AppError> {
+        self.generate_token_with_policy(user_id, display_name, channel_id, &MediaPolicy::OPEN)
+    }
+
+    /// A join token whose grants carry the participant's voice-moderation
+    /// policy (which sources they may publish, whether they may subscribe).
+    pub fn generate_token_with_policy(
+        &self,
+        user_id: &str,
+        display_name: &str,
+        channel_id: &str,
+        policy: &MediaPolicy,
+    ) -> Result<String, AppError> {
         let room_name = Self::room_name(channel_id);
         AccessToken::with_api_key(&self.api_key, &self.api_secret)
             .with_ttl(std::time::Duration::from_secs(60))
@@ -49,13 +63,46 @@ impl LiveKitClient {
             .with_grants(VideoGrants {
                 room_join: true,
                 room: room_name,
-                can_publish: true,
-                can_subscribe: true,
+                can_publish: policy.can_publish(),
+                can_subscribe: policy.can_listen(),
                 can_publish_data: true,
+                can_publish_sources: policy.publish_source_names(),
                 ..Default::default()
             })
             .to_jwt()
             .map_err(|e| AppError::Internal(format!("failed to generate livekit token: {}", e)))
+    }
+
+    /// Replaces a live participant's permission. False when LiveKit could not
+    /// apply it (participant not in the room yet, LiveKit unreachable).
+    pub async fn update_permission(
+        &self,
+        channel_id: &str,
+        user_id: &str,
+        permission: livekit_protocol::ParticipantPermission,
+    ) -> bool {
+        let room_name = Self::room_name(channel_id);
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.room_client.update_participant(
+                &room_name,
+                user_id,
+                UpdateParticipantOptions {
+                    permission: Some(permission),
+                    ..Default::default()
+                },
+            ),
+        )
+        .await
+        {
+            Ok(Ok(_)) => true,
+            result => {
+                tracing::debug!(
+                    "LiveKit permission update for {user_id} in {room_name} not applied: {result:?}"
+                );
+                false
+            }
+        }
     }
 
     /// Preflight connectivity check — called at startup to verify the server

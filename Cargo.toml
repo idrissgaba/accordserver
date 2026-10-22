@@ -26,6 +26,8 @@ reqwest = { version = "0.12", features = ["json"] }
 sha2 = "0.10"
 argon2 = "0.5"
 livekit-api = "0.4.14"
+# Already pulled in by livekit-api; named here for ParticipantPermission.
+livekit-protocol = "0.7.1"
 arc-swap = "1"
 totp-rs = { version = "5", features = ["gen_secret"] }
 data-encoding = "2"

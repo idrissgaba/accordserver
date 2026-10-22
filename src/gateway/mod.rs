@@ -1376,11 +1376,22 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                         ).await.is_err() {
                                                             continue;
                                                         }
+                                                        if crate::voice::moderation::require_room(
+                                                            &state, &channel, &auth_user,
+                                                        ).await.is_err() {
+                                                            continue;
+                                                        }
                                                     }
 
                                                     let (voice_state, prev) = crate::voice::state::join_voice_channel(
                                                         &state, &user_id, scope_space_id.as_deref(), &channel_id,
                                                         &session_id, self_mute, self_deaf, self_video, self_stream,
+                                                    );
+                                                    let policy = crate::voice::moderation::policy_for_join(
+                                                        &state, scope_space_id.as_deref(), &channel_id, &user_id,
+                                                    ).await;
+                                                    let voice_state = crate::voice::moderation::record_join(
+                                                        &state, voice_state, policy,
                                                     );
 
                                                     // Clean up old LiveKit room if the user moved channels
@@ -1407,7 +1418,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                             .ok()
                                                             .and_then(|u| u.display_name.or(Some(u.username)))
                                                             .unwrap_or_else(|| user_id.clone());
-                                                        let server_update = match lk.generate_token(&user_id, &display_name, &channel_id) {
+                                                        let server_update = match lk.generate_token_with_policy(&user_id, &display_name, &channel_id, &policy) {
                                                             Ok(token) => serde_json::json!({
                                                                 "op": events::opcode::EVENT,
                                                                 "type": "voice.server_update",

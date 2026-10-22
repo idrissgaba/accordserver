@@ -9,7 +9,8 @@ use crate::error::AppError;
 use crate::gateway::events::GatewayBroadcast;
 use crate::middleware::auth::AuthUser;
 use crate::middleware::permissions::{
-    require_hierarchy, require_membership, require_permission, require_role_hierarchy,
+    require_channel_permission, require_hierarchy, require_membership, require_permission,
+    require_role_hierarchy,
 };
 use crate::models::member::{MemberRow, UpdateMember};
 use crate::models::user::PublicUser;
@@ -183,6 +184,18 @@ pub async fn update_member(
         require_permission(&state.db, &space_id, &auth, "deafen_members").await?;
     }
 
+    // Moving a member to another voice channel, or disconnecting them,
+    // requires move_members; a move also needs the mover to be able to
+    // connect to the destination. The move happens first so a refused one
+    // leaves the rest of the update unapplied.
+    if let Some(target) = &input.channel_id {
+        require_permission(&state.db, &space_id, &auth, "move_members").await?;
+        if let Some(channel_id) = target {
+            require_channel_permission(&state.db, channel_id, &auth, "connect").await?;
+            crate::voice::moderation::move_member(&state, &space_id, &user_id, channel_id).await?;
+        }
+    }
+
     // Setting or clearing a moderation timeout requires moderate_members plus
     // the hierarchy check, so you cannot time out someone ranked above you.
     if let Some(timeout) = &input.communication_disabled_until {
@@ -249,12 +262,20 @@ pub async fn update_member(
             "data": member_json
         });
         let _ = dispatcher.send(GatewayBroadcast {
-            space_id: Some(space_id),
+            space_id: Some(space_id.clone()),
             target_user_ids: None,
             event,
             intent: "members".to_string(),
             required_permission: None,
         });
+    }
+
+    // Server mute/deafen apply to a call in progress, not just the next join.
+    if input.mute.is_some() || input.deaf.is_some() {
+        crate::voice::moderation::refresh_member(&state, &space_id, &user_id).await;
+    }
+    if let Some(None) = input.channel_id {
+        crate::security::revoke_space_voice_access(&state, &space_id, Some(&user_id)).await;
     }
 
     Ok(Json(serde_json::json!({ "data": member_json })))
@@ -463,6 +484,7 @@ pub async fn update_own_member(
         deaf: None,
         // Members can never set their own timeout.
         communication_disabled_until: None,
+        channel_id: None,
     };
     let row = db::members::update_member(&state.db, &space_id, &auth.user_id, &limited).await?;
     let role_ids = db::members::get_member_role_ids(&state.db, &space_id, &auth.user_id).await?;
