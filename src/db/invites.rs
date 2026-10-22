@@ -195,6 +195,21 @@ pub async fn delete_invite(pool: &AnyPool, code: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Whether [invite] can still be redeemed at [now] (formatted like
+/// `expires_at`, `%Y-%m-%dT%H:%M:%S+00:00`). Mirrors the guard in
+/// [accept_invite]'s use-count update, which stays the authoritative check.
+pub fn is_redeemable(invite: &Invite, now: &str) -> bool {
+    let uses_left = match invite.max_uses {
+        None | Some(0) => true,
+        Some(max) => invite.uses < max,
+    };
+    let unexpired = invite
+        .expires_at
+        .as_deref()
+        .is_none_or(|expires_at| expires_at > now);
+    uses_left && unexpired
+}
+
 /// Serialize finite-invite claims and commit membership and use count together.
 pub async fn accept_invite(
     pool: &AnyPool,
@@ -253,4 +268,50 @@ pub async fn accept_invite(
     invite.uses += 1;
     tx.commit().await?;
     Ok((invite, true))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn invite(max_uses: Option<i64>, uses: i64, expires_at: Option<&str>) -> Invite {
+        Invite {
+            code: "abc".into(),
+            space_id: "1".into(),
+            channel_id: None,
+            inviter_id: None,
+            max_uses,
+            uses,
+            max_age: None,
+            temporary: false,
+            created_at: "2026-10-01T00:00:00+00:00".into(),
+            expires_at: expires_at.map(str::to_string),
+        }
+    }
+
+    const NOW: &str = "2026-10-22T12:00:00+00:00";
+
+    #[test]
+    fn unlimited_and_unexpired_is_redeemable() {
+        assert!(is_redeemable(&invite(None, 99, None), NOW));
+        assert!(is_redeemable(&invite(Some(0), 99, None), NOW));
+    }
+
+    #[test]
+    fn exhausted_invite_is_not_redeemable() {
+        assert!(is_redeemable(&invite(Some(2), 1, None), NOW));
+        assert!(!is_redeemable(&invite(Some(2), 2, None), NOW));
+    }
+
+    #[test]
+    fn expired_invite_is_not_redeemable() {
+        assert!(is_redeemable(
+            &invite(None, 0, Some("2026-10-29T10:00:00+00:00")),
+            NOW
+        ));
+        assert!(!is_redeemable(
+            &invite(None, 0, Some("2026-10-21T10:00:00+00:00")),
+            NOW
+        ));
+    }
 }

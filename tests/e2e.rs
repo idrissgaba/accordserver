@@ -2226,6 +2226,100 @@ async fn test_registration_policy_open() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
+async fn invite_only_server() -> (TestServer, String, String) {
+    let server = TestServer::new().await;
+    sqlx::query("UPDATE server_settings SET registration_policy = 'invite_only' WHERE id = 1")
+        .execute(server.pool())
+        .await
+        .unwrap();
+    let settings = accordserver::db::settings::get_settings(server.pool())
+        .await
+        .unwrap();
+    server.state.settings.store(std::sync::Arc::new(settings));
+    let owner = server.create_user_with_token("owner").await;
+    let space_id = server.create_space(&owner.user.id, "Friends").await;
+    let req = authenticated_json_request(
+        Method::POST,
+        &format!("/api/v1/spaces/{space_id}/invites"),
+        &owner.auth_header(),
+        &serde_json::json!({ "max_uses": 1 }),
+    );
+    let response = server.router().oneshot(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let code = parse_body(response).await["data"]["code"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    (server, space_id, code)
+}
+
+async fn register_with(server: &TestServer, username: &str, invite: Option<&str>) -> StatusCode {
+    let mut body = serde_json::json!({
+        "username": username,
+        "password": "securepassword123"
+    });
+    if let Some(code) = invite {
+        body["invite_code"] = serde_json::json!(code);
+    }
+    let req = json_request(Method::POST, "/api/v1/auth/register", &body);
+    server.router().oneshot(req).await.unwrap().status()
+}
+
+#[tokio::test]
+async fn test_registration_invite_only_requires_invite() {
+    let (server, _space_id, _code) = invite_only_server().await;
+    assert_eq!(
+        register_with(&server, "nocode", None).await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        register_with(&server, "badcode", Some("not-a-code")).await,
+        StatusCode::FORBIDDEN
+    );
+    let users: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE username IN ('nocode', 'badcode')")
+            .fetch_one(server.pool())
+            .await
+            .unwrap();
+    assert_eq!(users, 0);
+}
+
+#[tokio::test]
+async fn test_registration_invite_only_redeems_invite() {
+    let (server, space_id, code) = invite_only_server().await;
+    assert_eq!(
+        register_with(&server, "friend", Some(&code)).await,
+        StatusCode::OK
+    );
+
+    let member: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM members m JOIN users u ON u.id = m.user_id WHERE m.space_id = ? AND u.username = 'friend'",
+    )
+    .bind(&space_id)
+    .fetch_one(server.pool())
+    .await
+    .unwrap();
+    assert_eq!(member, 1);
+    let uses: i64 = sqlx::query_scalar("SELECT uses FROM invites WHERE code = ?")
+        .bind(&code)
+        .fetch_one(server.pool())
+        .await
+        .unwrap();
+    assert_eq!(uses, 1);
+
+    // The single-use invite is now spent.
+    assert_eq!(
+        register_with(&server, "latecomer", Some(&code)).await,
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn test_registration_open_ignores_missing_invite() {
+    let server = TestServer::new().await;
+    assert_eq!(register_with(&server, "plain", None).await, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn test_settings_new_fields_roundtrip() {
     let server = TestServer::new().await;

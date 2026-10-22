@@ -6,7 +6,7 @@ use crate::error::AppError;
 use crate::gateway::events::GatewayBroadcast;
 use crate::middleware::auth::AuthUser;
 use crate::middleware::permissions::{require_channel_permission, require_permission};
-use crate::models::invite::CreateInvite;
+use crate::models::invite::{CreateInvite, Invite};
 use crate::state::AppState;
 
 pub async fn get_invite(
@@ -38,13 +38,25 @@ pub async fn accept_invite(
     if auth.is_guest {
         return Err(AppError::Forbidden("guests cannot accept invites".into()));
     }
-    let (invite, newly_added) = db::invites::accept_invite(&state.db, &code, &auth.user_id).await?;
+    let invite = redeem_invite(&state, &code, &auth.user_id).await?;
+    Ok(Json(serde_json::json!({ "data": invite })))
+}
+
+/// Redeems invite [code] for [user_id]: joins its space (counting one use) and,
+/// for a new member, broadcasts the join, fans it out to federation peers,
+/// writes the audit entry and posts the welcome message. Shared by
+/// `POST /invites/{code}/accept` and invite-only registration.
+pub(crate) async fn redeem_invite(
+    state: &AppState,
+    code: &str,
+    user_id: &str,
+) -> Result<Invite, AppError> {
+    let (invite, newly_added) = db::invites::accept_invite(&state.db, code, user_id).await?;
 
     if newly_added {
-        let member =
-            db::members::get_member_row(&state.db, &invite.space_id, &auth.user_id).await?;
+        let member = db::members::get_member_row(&state.db, &invite.space_id, user_id).await?;
         // Broadcast member.join to the space
-        let user = db::users::get_user(&state.db, &auth.user_id).await?;
+        let user = db::users::get_user(&state.db, user_id).await?;
         if let Some(ref dispatcher) = *state.gateway_tx.read().await {
             let event = serde_json::json!({
                 "op": 0,
@@ -68,7 +80,7 @@ pub async fn accept_invite(
         if let Some(fed) = state.federation.as_ref() {
             let payload = crate::federation::outbound::member_join_payload(&fed.domain, &user);
             let _ = crate::federation::outbound::fanout_to_space(
-                &state,
+                state,
                 &invite.space_id,
                 "m.member.join",
                 payload,
@@ -80,7 +92,7 @@ pub async fn accept_invite(
         if let Ok(entry) = db::audit_log::create_entry(
             &state.db,
             &invite.space_id,
-            &auth.user_id,
+            user_id,
             "invite_accept",
             invite.inviter_id.as_deref(),
             Some("invite"),
@@ -95,19 +107,15 @@ pub async fn accept_invite(
         )
         .await
         {
-            super::audit_log::broadcast_entry(&state, &entry).await;
+            super::audit_log::broadcast_entry(state, &entry).await;
         }
 
         // Post a system message in the welcome/system channel (if configured)
-        super::system_messages::broadcast_member_join_message(
-            &state,
-            &invite.space_id,
-            &auth.user_id,
-        )
-        .await;
+        super::system_messages::broadcast_member_join_message(state, &invite.space_id, user_id)
+            .await;
     }
 
-    Ok(Json(serde_json::json!({ "data": invite })))
+    Ok(invite)
 }
 
 pub async fn list_space_invites(

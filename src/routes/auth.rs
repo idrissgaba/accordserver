@@ -62,6 +62,11 @@ pub struct RegisterRequest {
     pub username: String,
     pub password: String,
     pub display_name: Option<String>,
+    /// Invite redeemed for the new account. Required when the registration
+    /// policy is `invite_only`; clients that don't send it keep the previous
+    /// behaviour (registration refused under `invite_only`).
+    #[serde(default)]
+    pub invite_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -411,8 +416,14 @@ pub async fn register(
     check_register_rate_limit(&state, &ip)?;
     record_register_attempt(&state, &ip);
 
-    // Check registration policy
-    let policy = &state.settings.load().registration_policy;
+    // Check registration policy. `invite_only` accepts a request carrying a
+    // redeemable invite; the invite is redeemed once the account exists.
+    let policy = state.settings.load().registration_policy.clone();
+    let invite_code = input
+        .invite_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|code| !code.is_empty());
     match policy.as_str() {
         "closed" => {
             return Err(AppError::Forbidden(
@@ -420,9 +431,22 @@ pub async fn register(
             ));
         }
         "invite_only" => {
-            return Err(AppError::Forbidden(
-                "registration requires an invitation".to_string(),
-            ));
+            let Some(code) = invite_code else {
+                return Err(AppError::Forbidden(
+                    "registration requires an invitation".to_string(),
+                ));
+            };
+            let now = chrono::Utc::now()
+                .format("%Y-%m-%dT%H:%M:%S+00:00")
+                .to_string();
+            let redeemable = db::invites::get_invite(&state.db, code)
+                .await
+                .is_ok_and(|invite| db::invites::is_redeemable(&invite, &now));
+            if !redeemable {
+                return Err(AppError::Forbidden(
+                    "invalid or expired invitation".to_string(),
+                ));
+            }
         }
         _ => {} // "open" or any other value allows registration
     }
@@ -499,6 +523,24 @@ pub async fn register(
     .map_err(AppError::from)?;
 
     let user = db::users::get_user(&state.db, &id).await?;
+
+    // Redeem the invite before the default-space auto-join: an invite to the
+    // default space must still count a use. Under `invite_only` the account only
+    // exists because of it, so losing the race for its last use removes the
+    // account again.
+    if let Some(code) = invite_code {
+        if let Err(e) = super::invites::redeem_invite(&state, code, &id).await {
+            if policy == "invite_only" {
+                if let Err(cleanup) = db::admin::delete_user(&state.db, &id).await {
+                    tracing::error!("failed to remove user {id} after invite failure: {cleanup:?}");
+                }
+                return Err(AppError::Forbidden(
+                    "invalid or expired invitation".to_string(),
+                ));
+            }
+            tracing::warn!("user {id} registered but invite {code} was not redeemed: {e:?}");
+        }
+    }
 
     // Auto-join the default space (first space created on the server)
     let default_space: Option<(String,)> =
