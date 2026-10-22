@@ -95,7 +95,7 @@ pub async fn get_message(
 /// (already resolved into `msg.mentions` at insert time), skipping the author so
 /// self-mentions never badge yourself. This is what makes the red mention badge
 /// survive a reconnect — the live gateway event only updates open clients.
-async fn apply_mention_counts(state: &AppState, msg: &MessageRow) {
+pub(crate) async fn apply_mention_counts(state: &AppState, msg: &MessageRow) {
     let mentions: Vec<String> = serde_json::from_str(&msg.mentions).unwrap_or_default();
     for uid in &mentions {
         if uid == &msg.author_id {
@@ -1170,6 +1170,8 @@ pub async fn messages_to_json(
         db::messages::get_reactions_for_messages(pool, &ids, current_user_id).await?;
     let attachments_map = db::attachments::get_attachments_for_messages(pool, &ids).await?;
     let reply_counts = db::messages::get_thread_reply_counts(pool, &ids).await?;
+    let components = db::interactions::components_for_messages(pool, &ids).await?;
+    let interactions = db::interactions::interactions_for_messages(pool, &ids).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1178,7 +1180,15 @@ pub async fn messages_to_json(
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
             let count = reply_counts.get(&row.id).copied();
-            message_row_to_json_full(row, atts, reactions_map.get(&row.id), count)
+            let mut json = message_row_to_json_full(row, atts, reactions_map.get(&row.id), count);
+            // A bot's buttons and menus, and the command it answers.
+            if let Some(c) = components.get(&row.id) {
+                json["components"] = c.clone();
+            }
+            if let Some(i) = interactions.get(&row.id) {
+                json["interaction"] = i.clone();
+            }
+            json
         })
         .collect())
 }

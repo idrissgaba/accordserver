@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod app_commands;
 pub mod attachments;
 pub mod audit_log;
 pub mod auth;
@@ -8,6 +9,7 @@ pub mod dm_participants;
 pub mod emojis;
 pub mod experiences;
 pub mod federation;
+pub mod interactions;
 pub mod invites;
 pub mod members;
 pub mod messages;
