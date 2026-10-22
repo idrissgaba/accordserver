@@ -9,6 +9,7 @@ pub mod member;
 pub mod message;
 pub mod mute;
 pub mod permission;
+pub mod poll;
 pub mod presence;
 pub mod role;
 pub mod settings;

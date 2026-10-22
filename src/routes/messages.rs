@@ -714,7 +714,13 @@ pub async fn update_message(
 
     // Load existing attachments for the response
     let attachments = db::attachments::get_attachments_for_message(&state.db, &message_id).await?;
-    let json = message_row_to_json_with_attachments(&msg, &attachments, None);
+    let mut json = message_row_to_json_with_attachments(&msg, &attachments, None);
+    // Keep a poll on the edited message, so clients don't drop it.
+    let polls =
+        db::polls::polls_for_messages(&state.db, std::slice::from_ref(&message_id), None).await?;
+    if let Some(poll) = polls.get(&message_id) {
+        json["poll"] = poll.clone();
+    }
 
     // Broadcast to gateway
     let channel = db::channels::get_channel_row(&state.db, &channel_id).await?;
@@ -1170,6 +1176,7 @@ pub async fn messages_to_json(
         db::messages::get_reactions_for_messages(pool, &ids, current_user_id).await?;
     let attachments_map = db::attachments::get_attachments_for_messages(pool, &ids).await?;
     let reply_counts = db::messages::get_thread_reply_counts(pool, &ids).await?;
+    let polls = db::polls::polls_for_messages(pool, &ids, current_user_id).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1178,7 +1185,11 @@ pub async fn messages_to_json(
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
             let count = reply_counts.get(&row.id).copied();
-            message_row_to_json_full(row, atts, reactions_map.get(&row.id), count)
+            let mut json = message_row_to_json_full(row, atts, reactions_map.get(&row.id), count);
+            if let Some(poll) = polls.get(&row.id) {
+                json["poll"] = poll.clone();
+            }
+            json
         })
         .collect())
 }
