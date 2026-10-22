@@ -21,6 +21,8 @@ community server alongside the client fork
 | Mark unread (manual ack) | `feature/mark-unread` | Deployed | `src/routes/read_states.rs`, `src/db/read_states.rs`, `tests/e2e.rs` |
 | Polls | `feature/polls` | Deployed | `migrations/040_polls.sql`, `migrations/postgres/025_polls.sql`, `src/models/poll.rs`, `src/db/polls.rs`, `src/routes/polls.rs`, `src/routes/messages.rs`, `tests/polls.rs` |
 | Voice moderation enforced in LiveKit; move, disconnect, user limits | `feature/voice-moderation` | Deployed | `src/voice/moderation.rs`, `src/voice/livekit.rs`, `src/routes/members.rs`, `src/routes/voice.rs`, `src/gateway/mod.rs`, `src/security.rs`, `tests/voice_moderation.rs`, `docs/voice-moderation.md` |
+| Incoming webhooks (chat-service compatible payload) | `feature/webhooks` | Deployed | `migrations/041_webhooks.sql`, `migrations/postgres/026_webhooks.sql`, `src/models/webhook.rs`, `src/db/webhooks.rs`, `src/routes/webhooks.rs`, `tests/webhooks.rs`, `docs/webhooks.md` |
+| Slash commands, interactions, message components | `feature/interactions` | Deployed | `migrations/042_interactions.sql`, `migrations/postgres/027_interactions.sql`, `src/models/app_command.rs`, `src/db/app_commands.rs`, `src/db/interactions.rs`, `src/routes/interactions.rs`, `src/routes/applications.rs`, `tests/interactions.rs`, `docs/interactions.md` |
 
 ### Registration with an invite (`invite_only`)
 
@@ -59,6 +61,23 @@ working: they see the real `mute`/`deaf`/`suppress` flags, and a moved official
 client is evicted and rejoins its old channel (it doesn't know the `moved`
 event). `livekit-protocol` (already a dependency of `livekit-api`) is named in
 `Cargo.toml` for `ParticipantPermission`.
+
+### Webhooks
+
+See [webhooks.md](webhooks.md). Each webhook posts as its own bot user, so
+official clients render its messages normally (they ignore `webhook_author`).
+
+### Slash commands and components
+
+See [interactions.md](interactions.md). Replaces upstream's stub
+`/applications/{id}/commands` and `/interactions/{id}/{token}/callback`
+routes; `GET /applications/@me` also answers a bot token with the bot's own
+application. Official clients show bot answers as plain messages (no command
+picker, no buttons).
+
+Migration numbers in this fork: 040 polls, 041 webhooks, 042 interactions
+(Postgres 025–027). If upstream ships migrations with these numbers, renumber
+the fork's on the next update and note it here.
 
 ## Updating from upstream
 
