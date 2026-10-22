@@ -2226,6 +2226,121 @@ async fn test_registration_policy_open() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
+async fn read_position(server: &TestServer, user_id: &str, channel_id: &str) -> Option<String> {
+    sqlx::query_scalar(
+        "SELECT last_read_message_id FROM read_states WHERE user_id = ? AND channel_id = ?",
+    )
+    .bind(user_id)
+    .bind(channel_id)
+    .fetch_optional(server.pool())
+    .await
+    .unwrap()
+    .flatten()
+}
+
+async fn ack(
+    server: &TestServer,
+    auth: &str,
+    channel_id: &str,
+    body: serde_json::Value,
+) -> StatusCode {
+    let req = authenticated_json_request(
+        Method::POST,
+        &format!("/api/v1/channels/{channel_id}/ack"),
+        auth,
+        &body,
+    );
+    server.router().oneshot(req).await.unwrap().status()
+}
+
+#[tokio::test]
+async fn test_ack_only_moves_forward_but_manual_marks_unread() {
+    let server = TestServer::new().await;
+    let user = server.create_user_with_token("reader").await;
+    let space_id = server.create_space(&user.user.id, "Space").await;
+    let channel_id = server.create_channel(&space_id, "general").await;
+    let auth = user.auth_header();
+
+    assert_eq!(
+        ack(
+            &server,
+            &auth,
+            &channel_id,
+            serde_json::json!({"message_id": "200"})
+        )
+        .await,
+        StatusCode::OK
+    );
+    // A plain ack never moves the read position backwards.
+    ack(
+        &server,
+        &auth,
+        &channel_id,
+        serde_json::json!({"message_id": "100"}),
+    )
+    .await;
+    assert_eq!(
+        read_position(&server, &user.user.id, &channel_id)
+            .await
+            .as_deref(),
+        Some("200")
+    );
+
+    // "Mark unread" sets it exactly, backwards included.
+    assert_eq!(
+        ack(
+            &server,
+            &auth,
+            &channel_id,
+            serde_json::json!({"message_id": "100", "manual": true})
+        )
+        .await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        read_position(&server, &user.user.id, &channel_id)
+            .await
+            .as_deref(),
+        Some("100")
+    );
+
+    // Reading again afterwards moves forward as usual.
+    ack(
+        &server,
+        &auth,
+        &channel_id,
+        serde_json::json!({"message_id": "150"}),
+    )
+    .await;
+    assert_eq!(
+        read_position(&server, &user.user.id, &channel_id)
+            .await
+            .as_deref(),
+        Some("150")
+    );
+}
+
+#[tokio::test]
+async fn test_mark_unread_requires_channel_membership() {
+    let server = TestServer::new().await;
+    let owner = server.create_user_with_token("owner2").await;
+    let outsider = server.create_user_with_token("outsider").await;
+    let space_id = server.create_space(&owner.user.id, "Private").await;
+    let channel_id = server.create_channel(&space_id, "general").await;
+    let status = ack(
+        &server,
+        &outsider.auth_header(),
+        &channel_id,
+        serde_json::json!({"message_id": "1", "manual": true}),
+    )
+    .await;
+    assert!(status.is_client_error(), "got {status}");
+    assert_eq!(
+        read_position(&server, &outsider.user.id, &channel_id).await,
+        None
+    );
+}
+
 #[tokio::test]
 async fn test_settings_new_fields_roundtrip() {
     let server = TestServer::new().await;
