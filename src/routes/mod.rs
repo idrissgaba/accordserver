@@ -18,6 +18,7 @@ mod landing;
 pub mod members;
 pub mod messages;
 mod mutes;
+mod polls;
 mod reactions;
 mod read_states;
 mod relationships;
@@ -365,6 +366,15 @@ fn api_routes(state: &AppState) -> Router<AppState> {
         .route(
             "/channels/{channel_id}/threads",
             get(messages::list_active_threads),
+        )
+        .route("/channels/{channel_id}/polls", post(polls::create_poll))
+        .route(
+            "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/@me",
+            put(polls::vote).delete(polls::unvote),
+        )
+        .route(
+            "/channels/{channel_id}/polls/{message_id}/expire",
+            post(polls::expire_poll),
         )
         .route("/channels/{channel_id}/pins", get(messages::list_pins))
         .route(
