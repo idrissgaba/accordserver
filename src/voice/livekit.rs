@@ -161,6 +161,49 @@ impl LiveKitClient {
         }
     }
 
+    /// Subscribes `user_id` to every track the others in the room publish.
+    /// LiveKit stops forwarding media when `can_subscribe` is revoked but does
+    /// not resume it when the right comes back, so lifting a server deafen
+    /// needs this. False when LiveKit could not do it.
+    pub async fn resubscribe_all(&self, channel_id: &str, user_id: &str) -> bool {
+        let room_name = Self::room_name(channel_id);
+        let participants = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.room_client.list_participants(&room_name),
+        )
+        .await
+        {
+            Ok(Ok(participants)) => participants,
+            result => {
+                tracing::debug!("LiveKit participants of {room_name} unavailable: {result:?}");
+                return false;
+            }
+        };
+        let track_sids: Vec<String> = participants
+            .into_iter()
+            .filter(|p| p.identity != user_id)
+            .flat_map(|p| p.tracks.into_iter().map(|t| t.sid))
+            .collect();
+        if track_sids.is_empty() {
+            return true;
+        }
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.room_client
+                .update_subscriptions(&room_name, user_id, track_sids, true),
+        )
+        .await
+        {
+            Ok(Ok(())) => true,
+            result => {
+                tracing::debug!(
+                    "LiveKit resubscription of {user_id} in {room_name} failed: {result:?}"
+                );
+                false
+            }
+        }
+    }
+
     pub async fn delete_room_if_empty(&self, channel_id: &str) {
         let room_name = Self::room_name(channel_id);
         match self.room_client.list_participants(&room_name).await {

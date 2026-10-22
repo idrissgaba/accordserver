@@ -105,6 +105,12 @@ impl MediaPolicy {
         }
     }
 
+    /// Whether moving from `self` to `next` lifts a server deafen: LiveKit
+    /// then has to be told to subscribe the participant again.
+    pub fn regains_listening(&self, next: &Self) -> bool {
+        !self.can_listen() && next.can_listen()
+    }
+
     /// Whether moving from `self` to `next` changes what LiveKit enforces
     /// (as opposed to only the flags shown to other members).
     fn livekit_differs(&self, next: &Self) -> bool {
@@ -253,6 +259,11 @@ pub async fn sync_session(state: &AppState, current: &VoiceState) {
         if !lk
             .update_permission(channel_id, &current.user_id, policy.permission())
             .await
+        {
+            return;
+        }
+        if applied.regains_listening(&policy)
+            && !lk.resubscribe_all(channel_id, &current.user_id).await
         {
             return;
         }
@@ -466,6 +477,15 @@ mod tests {
         assert!(!silent.can_publish());
         let permission = silent.permission();
         assert!(!permission.can_publish && permission.can_publish_sources.is_empty());
+    }
+
+    #[test]
+    fn lifting_a_deafen_resubscribes() {
+        let deaf = policy(false, true, false, true);
+        assert!(deaf.regains_listening(&MediaPolicy::OPEN));
+        assert!(!MediaPolicy::OPEN.regains_listening(&deaf));
+        // Still deafened: nothing to resubscribe to.
+        assert!(!deaf.regains_listening(&policy(true, true, false, true)));
     }
 
     #[test]

@@ -23,6 +23,13 @@ live participant with LiveKit's `UpdateParticipant`; LiveKit then unpublishes
 tracks that are no longer allowed. The periodic voice reconciliation retries
 an update LiveKit could not apply yet (participant not connected).
 
+Measured against LiveKit 1.13 (a throwaway room, two test participants):
+revoking a source unpublishes it at once and refuses a republish; revoking
+`canSubscribe` stops forwarding media immediately (the client gets no
+unsubscribe event, the audio just stops) and blocks new subscriptions, but
+granting it back does not resume anything. Lifting a server deafen therefore
+also calls `UpdateSubscriptions` for every track in the room.
+
 ## Moving and disconnecting members
 
 `PATCH /spaces/{space_id}/members/{user_id}` accepts `channel_id`
