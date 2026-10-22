@@ -550,14 +550,37 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             "/applications/@me/reset-token",
             post(applications::reset_token),
         )
-        // Interactions (stubs)
+        // Slash commands and message components
         .route(
             "/applications/{app_id}/commands",
-            get(interactions::list_global_commands).post(interactions::create_global_command),
+            get(interactions::list_global_commands)
+                .post(interactions::create_global_command)
+                .put(interactions::replace_global_commands),
         )
+        .route(
+            "/applications/{app_id}/commands/{command_id}",
+            delete(interactions::delete_global_command),
+        )
+        .route(
+            "/spaces/{space_id}/commands",
+            get(interactions::list_space_commands),
+        )
+        .route("/interactions", post(interactions::create_interaction))
         .route(
             "/interactions/{interaction_id}/{token}/callback",
             post(interactions::interaction_callback),
+        )
+        .route(
+            "/interactions/{interaction_id}/{token}/original",
+            patch(interactions::edit_original).delete(interactions::delete_original),
+        )
+        .route(
+            "/interactions/{interaction_id}/{token}/followup",
+            post(interactions::create_followup),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/components",
+            put(interactions::set_message_components),
         )
         // Attachment moderation: authenticated and rate-limited with the API.
         .route("/automod/health", get(crate::automod::routes::health))

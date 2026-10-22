@@ -1178,6 +1178,8 @@ pub async fn messages_to_json(
     let reply_counts = db::messages::get_thread_reply_counts(pool, &ids).await?;
     let polls = db::polls::polls_for_messages(pool, &ids, current_user_id).await?;
     let webhook_names = db::webhooks::usernames_for_messages(pool, &ids).await?;
+    let components = db::interactions::components_for_messages(pool, &ids).await?;
+    let interactions = db::interactions::interactions_for_messages(pool, &ids).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1193,6 +1195,13 @@ pub async fn messages_to_json(
             // A webhook call may post under its own display name.
             if let Some(name) = webhook_names.get(&row.id) {
                 json["webhook_author"] = serde_json::json!({ "name": name });
+            }
+            // A bot's buttons and menus, and the command it answers.
+            if let Some(c) = components.get(&row.id) {
+                json["components"] = c.clone();
+            }
+            if let Some(i) = interactions.get(&row.id) {
+                json["interaction"] = i.clone();
             }
             json
         })
