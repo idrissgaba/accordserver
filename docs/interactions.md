@@ -7,6 +7,9 @@ with a token the bot answers with.
 
 ## Registering commands (the application's bot or owner)
 
+A bot finds its application id with `GET /applications/@me` (with its own bot
+token; the owner's token still returns the application they own).
+
 | Request | |
 |---|---|
 | `GET /applications/{app_id}/commands` | the application's global commands |

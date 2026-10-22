@@ -222,6 +222,22 @@ async fn members_see_the_commands_of_bots_in_their_space() {
 }
 
 #[tokio::test]
+async fn a_bot_finds_its_own_application() {
+    let s = setup().await;
+    let (status, body) = call(
+        &s.server,
+        authenticated_request(
+            Method::GET,
+            "/api/v1/applications/@me",
+            &s.bot.auth_header(),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["data"]["id"], s.app_id.as_str());
+}
+
+#[tokio::test]
 async fn invoking_checks_options_and_tells_the_bot() {
     let s = setup().await;
     let mut rx = subscribe(&s.server).await;

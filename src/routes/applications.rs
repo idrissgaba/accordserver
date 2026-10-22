@@ -27,6 +27,16 @@ pub async fn get_current_application(
     state: State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // A bot asks for the application it belongs to (to register its slash
+    // commands); anyone else for the one they own.
+    if auth.is_bot {
+        if let Some(app) =
+            db::app_commands::application_by_bot_user(&state.db, &auth.user_id).await?
+        {
+            let app = db::auth::get_application(&state.db, &app.id).await?;
+            return Ok(Json(serde_json::json!({ "data": app })));
+        }
+    }
     let app = db::auth::get_application_by_owner(&state.db, &auth.user_id).await?;
     Ok(Json(serde_json::json!({ "data": app })))
 }
