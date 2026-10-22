@@ -176,7 +176,12 @@ async fn poll_changed(
     auth: &AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let mut broadcast = messages_to_json(&state.db, std::slice::from_ref(row), None).await?;
-    if let Some(json) = broadcast.pop() {
+    if let Some(mut json) = broadcast.pop() {
+        // Without a viewer, reactions would say nobody's own reaction is
+        // theirs; leave them out so clients keep what they already have.
+        if let Some(object) = json.as_object_mut() {
+            object.remove("reactions");
+        }
         if let Some(ref dispatcher) = *state.gateway_tx.read().await {
             let event = serde_json::json!({
                 "op": 0,
