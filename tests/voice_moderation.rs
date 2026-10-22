@@ -397,6 +397,7 @@ async fn moving_a_member_switches_their_channel_and_tells_their_client() {
                 let data = &broadcast.event["data"];
                 assert_eq!(data["moved"], true);
                 assert_eq!(data["from_channel_id"], from.as_str());
+                assert_eq!(data["voice_state"]["channel_id"], to.as_str());
                 assert_eq!(data["channel_id"], to.as_str());
                 assert!(data["token"].as_str().is_some_and(|t| !t.is_empty()));
                 told = true;

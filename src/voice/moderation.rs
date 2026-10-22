@@ -383,6 +383,7 @@ pub async fn move_member(
                 "channel_id": channel_id,
                 "from_channel_id": from,
                 "moved": true,
+                "voice_state": moved,
                 "backend": "livekit",
                 "url": lk.external_url(),
                 "token": token
