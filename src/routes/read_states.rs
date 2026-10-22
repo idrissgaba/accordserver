@@ -33,6 +33,10 @@ pub async fn get_unread_channels(
 #[derive(Deserialize)]
 pub struct AckChannelBody {
     pub message_id: String,
+    /// "Mark unread": set the read position to exactly `message_id`, even
+    /// backwards. Without it the position only ever moves forward.
+    #[serde(default)]
+    pub manual: bool,
 }
 
 /// POST /channels/{channel_id}/ack
@@ -45,14 +49,25 @@ pub async fn ack_channel(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_channel_membership(&state.db, &channel_id, &auth.user_id).await?;
 
-    db::read_states::ack_channel(
-        &state.db,
-        &auth.user_id,
-        &channel_id,
-        &input.message_id,
-        state.db_is_postgres,
-    )
-    .await?;
+    if input.manual {
+        db::read_states::set_read_position(
+            &state.db,
+            &auth.user_id,
+            &channel_id,
+            &input.message_id,
+            state.db_is_postgres,
+        )
+        .await?;
+    } else {
+        db::read_states::ack_channel(
+            &state.db,
+            &auth.user_id,
+            &channel_id,
+            &input.message_id,
+            state.db_is_postgres,
+        )
+        .await?;
+    }
 
     // Sync the new read position to the user's *other* sessions (multi-device:
     // reading on your phone clears the badge on desktop). Targeted at the acking
@@ -65,6 +80,7 @@ pub async fn ack_channel(
                 "channel_id": channel_id,
                 "last_read_message_id": input.message_id,
                 "mention_count": 0,
+                "manual": input.manual,
             }
         });
         let _ = dispatcher.send(crate::gateway::events::GatewayBroadcast {

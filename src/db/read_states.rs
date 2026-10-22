@@ -103,6 +103,35 @@ pub async fn ack_channel(
     Ok(())
 }
 
+/// Set the read position to exactly `message_id` ("mark unread"): unlike
+/// [ack_channel] it may move backwards. A `message_id` of `"0"` marks the whole
+/// channel unread.
+pub async fn set_read_position(
+    pool: &AnyPool,
+    user_id: &str,
+    channel_id: &str,
+    message_id: &str,
+    is_postgres: bool,
+) -> Result<(), AppError> {
+    let now = now_sql(is_postgres);
+    let sql = format!(
+        "INSERT INTO read_states (user_id, channel_id, last_read_message_id, mention_count, updated_at)
+         VALUES (?, ?, ?, 0, {now})
+         ON CONFLICT(user_id, channel_id) DO UPDATE SET
+           last_read_message_id = EXCLUDED.last_read_message_id,
+           updated_at = {now}"
+    );
+    let sql = super::q(&sql);
+    sqlx::query(&sql)
+        .bind(user_id)
+        .bind(channel_id)
+        .bind(message_id)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
 /// Increment mention count for a user in a channel.
 pub async fn increment_mention_count(
     pool: &AnyPool,
