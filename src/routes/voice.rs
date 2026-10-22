@@ -74,6 +74,7 @@ pub async fn join_voice(
             .clone()
             .ok_or_else(|| AppError::BadRequest("channel_has_no_space".to_string()))?;
         require_not_timed_out(&state.db, &sid, &auth).await?;
+        voice::moderation::require_room(&state, &channel, &auth).await?;
         Some(sid)
     };
 
@@ -92,6 +93,10 @@ pub async fn join_voice(
         false,
         false,
     );
+    let policy =
+        voice::moderation::policy_for_join(&state, space_id.as_deref(), &channel_id, &auth.user_id)
+            .await;
+    let voice_state = voice::moderation::record_join(&state, voice_state, policy);
 
     let lk = state
         .livekit_client
@@ -119,7 +124,7 @@ pub async fn join_voice(
     }
     let user = db::users::get_user(&state.db, &auth.user_id).await?;
     let display_name = user.display_name.as_deref().unwrap_or(&user.username);
-    let token = lk.generate_token(&auth.user_id, display_name, &channel_id)?;
+    let token = lk.generate_token_with_policy(&auth.user_id, display_name, &channel_id, &policy)?;
     Ok(Json(serde_json::json!({
         "data": {
             "voice_state": voice_state,

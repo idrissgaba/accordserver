@@ -55,6 +55,9 @@ pub struct SecurityState {
     pub tracker_lock: Mutex<()>,
     pub upload_limits: dashmap::DashMap<String, crate::middleware::rate_limit::UploadBucket>,
     voice_cleanup: tokio::sync::Mutex<()>,
+    /// The voice-moderation policy LiveKit currently enforces, per voice
+    /// session id.
+    pub voice_media: dashmap::DashMap<String, crate::voice::moderation::MediaPolicy>,
 }
 
 impl Default for SecurityState {
@@ -66,6 +69,7 @@ impl Default for SecurityState {
             tracker_lock: Mutex::new(()),
             upload_limits: dashmap::DashMap::new(),
             voice_cleanup: tokio::sync::Mutex::new(()),
+            voice_media: dashmap::DashMap::new(),
         }
     }
 }
@@ -262,10 +266,12 @@ pub async fn reconcile_voice_access(state: &AppState) {
             _ => false,
         };
         if allowed {
+            crate::voice::moderation::sync_session(state, &old).await;
             continue;
         }
         drop_voice_session(state, &old).await;
     }
+    crate::voice::moderation::prune(state);
 }
 
 /// Persist eviction before contacting LiveKit so failures survive disconnects and restarts.

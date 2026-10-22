@@ -48,6 +48,10 @@ pub struct UpdateMember {
         deserialize_with = "deserialize_double_option"
     )]
     pub communication_disabled_until: Option<Option<String>>,
+    /// Voice channel to move the member to, or explicit `null` to disconnect
+    /// them from voice (requires `move_members`). Absent leaves voice alone.
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub channel_id: Option<Option<String>>,
 }
 
 /// Deserializes a present-but-possibly-null field into `Some(Option<T>)` while
