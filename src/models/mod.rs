@@ -17,6 +17,7 @@ pub mod soundboard;
 pub mod space;
 pub mod user;
 pub mod voice;
+pub mod webhook;
 
 use serde::Serialize;
 

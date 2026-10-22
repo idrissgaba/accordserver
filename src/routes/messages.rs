@@ -95,7 +95,7 @@ pub async fn get_message(
 /// (already resolved into `msg.mentions` at insert time), skipping the author so
 /// self-mentions never badge yourself. This is what makes the red mention badge
 /// survive a reconnect — the live gateway event only updates open clients.
-async fn apply_mention_counts(state: &AppState, msg: &MessageRow) {
+pub(crate) async fn apply_mention_counts(state: &AppState, msg: &MessageRow) {
     let mentions: Vec<String> = serde_json::from_str(&msg.mentions).unwrap_or_default();
     for uid in &mentions {
         if uid == &msg.author_id {
@@ -1177,6 +1177,7 @@ pub async fn messages_to_json(
     let attachments_map = db::attachments::get_attachments_for_messages(pool, &ids).await?;
     let reply_counts = db::messages::get_thread_reply_counts(pool, &ids).await?;
     let polls = db::polls::polls_for_messages(pool, &ids, current_user_id).await?;
+    let webhook_names = db::webhooks::usernames_for_messages(pool, &ids).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1188,6 +1189,10 @@ pub async fn messages_to_json(
             let mut json = message_row_to_json_full(row, atts, reactions_map.get(&row.id), count);
             if let Some(poll) = polls.get(&row.id) {
                 json["poll"] = poll.clone();
+            }
+            // A webhook call may post under its own display name.
+            if let Some(name) = webhook_names.get(&row.id) {
+                json["webhook_author"] = serde_json::json!({ "name": name });
             }
             json
         })
