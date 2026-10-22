@@ -32,6 +32,7 @@ pub mod system_messages;
 mod test_seed;
 mod users;
 pub(crate) mod voice;
+mod webhooks;
 
 use axum::middleware as axum_mw;
 use axum::routing::{delete, get, patch, post, put};
@@ -367,6 +368,29 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             get(messages::list_active_threads),
         )
         .route("/channels/{channel_id}/pins", get(messages::list_pins))
+        // Incoming webhooks: managed per channel, executed by secret URL.
+        .route(
+            "/channels/{channel_id}/webhooks",
+            get(webhooks::list_channel_webhooks).post(webhooks::create_webhook),
+        )
+        .route(
+            "/spaces/{space_id}/webhooks",
+            get(webhooks::list_space_webhooks),
+        )
+        .route(
+            "/webhooks/{webhook_id}",
+            get(webhooks::get_webhook)
+                .patch(webhooks::update_webhook)
+                .delete(webhooks::delete_webhook),
+        )
+        .route(
+            "/webhooks/{webhook_id}/{token}",
+            get(webhooks::get_webhook_with_token).post(webhooks::execute_webhook),
+        )
+        .route(
+            "/webhooks/{webhook_id}/{token}/messages/{message_id}",
+            patch(webhooks::edit_webhook_message).delete(webhooks::delete_webhook_message),
+        )
         .route(
             "/channels/{channel_id}/pins/{message_id}",
             put(messages::pin_message).delete(messages::unpin_message),

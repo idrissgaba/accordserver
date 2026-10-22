@@ -21,6 +21,7 @@ pub mod settings;
 pub mod soundboard;
 pub mod spaces;
 pub mod users;
+pub mod webhooks;
 
 use std::str::FromStr;
 use std::sync::OnceLock;
