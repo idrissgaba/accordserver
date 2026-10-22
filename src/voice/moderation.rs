@@ -362,11 +362,6 @@ pub async fn move_member(
 
     if !state.test_mode {
         if let Some(lk) = state.livekit_client.as_ref() {
-            if let Err(err) = crate::security::evict_voice_participant(state, &from, user_id).await
-            {
-                tracing::warn!("voice eviction could not be queued: {err}");
-            }
-            lk.delete_room_if_empty(&from).await;
             lk.ensure_room(channel_id).await?;
         }
     }
@@ -374,6 +369,8 @@ pub async fn move_member(
     crate::routes::voice::broadcast_voice_state_update(state, channel_id, Some(space_id), &moved)
         .await;
 
+    // Tell the member's client where to go before pulling it out of the old
+    // room, so it can follow the move instead of reconnecting to where it was.
     if let Some(lk) = state.livekit_client.as_ref() {
         let user = db::users::get_user(&state.db, user_id).await?;
         let display_name = user.display_name.as_deref().unwrap_or(&user.username);
@@ -399,6 +396,13 @@ pub async fn move_member(
                 intent: "voice_states".to_string(),
                 required_permission: None,
             });
+        }
+        if !state.test_mode {
+            if let Err(err) = crate::security::evict_voice_participant(state, &from, user_id).await
+            {
+                tracing::warn!("voice eviction could not be queued: {err}");
+            }
+            lk.delete_room_if_empty(&from).await;
         }
     }
     Ok(moved)
