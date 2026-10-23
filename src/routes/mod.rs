@@ -27,6 +27,7 @@ pub mod seo;
 mod settings;
 mod soundboard;
 pub mod spaces;
+mod stickers;
 pub mod system_messages;
 #[cfg(feature = "test-seed")]
 mod test_seed;
@@ -367,6 +368,19 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             get(messages::list_active_threads),
         )
         .route("/channels/{channel_id}/pins", get(messages::list_pins))
+        // Stickers
+        .route(
+            "/spaces/{space_id}/stickers",
+            get(stickers::list_stickers).post(stickers::create_sticker),
+        )
+        .route(
+            "/spaces/{space_id}/stickers/{sticker_id}",
+            patch(stickers::update_sticker).delete(stickers::delete_sticker),
+        )
+        .route(
+            "/channels/{channel_id}/stickers/{sticker_id}",
+            post(stickers::send_sticker),
+        )
         .route(
             "/channels/{channel_id}/pins/{message_id}",
             put(messages::pin_message).delete(messages::unpin_message),

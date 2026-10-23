@@ -20,6 +20,7 @@ pub mod roles;
 pub mod settings;
 pub mod soundboard;
 pub mod spaces;
+pub mod stickers;
 pub mod users;
 
 use std::str::FromStr;
