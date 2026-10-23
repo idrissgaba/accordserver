@@ -23,6 +23,7 @@ mod read_states;
 mod relationships;
 pub mod reports;
 pub mod roles;
+pub mod scheduled_events;
 pub mod seo;
 mod settings;
 mod soundboard;
@@ -367,6 +368,25 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             get(messages::list_active_threads),
         )
         .route("/channels/{channel_id}/pins", get(messages::list_pins))
+        // Scheduled events
+        .route(
+            "/spaces/{space_id}/events",
+            get(scheduled_events::list_events).post(scheduled_events::create_event),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}",
+            get(scheduled_events::get_event)
+                .patch(scheduled_events::update_event)
+                .delete(scheduled_events::delete_event),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}/users",
+            get(scheduled_events::list_event_users),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}/users/@me",
+            put(scheduled_events::add_interest).delete(scheduled_events::remove_interest),
+        )
         .route(
             "/channels/{channel_id}/pins/{message_id}",
             put(messages::pin_message).delete(messages::unpin_message),

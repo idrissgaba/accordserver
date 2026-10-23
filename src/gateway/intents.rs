@@ -56,6 +56,11 @@ pub fn intent_for_event(event_type: &str) -> Option<&'static str> {
         }
         "relationship.add" | "relationship.update" | "relationship.remove" => Some("relationships"),
         "experience.session" => Some("experiences"),
+        "scheduled_event.create"
+        | "scheduled_event.update"
+        | "scheduled_event.delete"
+        | "scheduled_event.user_add"
+        | "scheduled_event.user_remove" => Some("scheduled_events"),
         // Profile changes are already fanned out only to shared spaces, DM
         // peers and friends, and every client renders usernames and avatars
         // regardless of which intents it asked for.
