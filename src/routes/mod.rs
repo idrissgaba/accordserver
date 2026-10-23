@@ -32,6 +32,7 @@ pub mod system_messages;
 mod test_seed;
 mod users;
 pub(crate) mod voice;
+mod welcome_screen;
 
 use axum::middleware as axum_mw;
 use axum::routing::{delete, get, patch, post, put};
@@ -367,6 +368,10 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             get(messages::list_active_threads),
         )
         .route("/channels/{channel_id}/pins", get(messages::list_pins))
+        .route(
+            "/spaces/{space_id}/welcome-screen",
+            get(welcome_screen::get_welcome_screen).patch(welcome_screen::update_welcome_screen),
+        )
         .route(
             "/channels/{channel_id}/pins/{message_id}",
             put(messages::pin_message).delete(messages::unpin_message),
