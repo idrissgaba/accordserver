@@ -16,6 +16,7 @@ pub mod messages;
 pub mod mutes;
 pub mod permission_overwrites;
 pub mod polls;
+pub mod profiles;
 pub mod read_states;
 pub mod relationships;
 pub mod reports;

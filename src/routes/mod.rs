@@ -19,6 +19,7 @@ pub mod members;
 pub mod messages;
 mod mutes;
 mod polls;
+mod profiles;
 mod reactions;
 mod read_states;
 mod relationships;
@@ -217,6 +218,14 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             get(users::export_current_user_data),
         )
         .route("/users/@me/spaces", get(users::get_current_user_spaces))
+        // Profile extras and private notes
+        .route(
+            "/users/@me/profile",
+            get(profiles::get_my_profile).patch(profiles::update_profile),
+        )
+        .route("/users/@me/notes", get(profiles::list_notes))
+        .route("/users/@me/notes/{user_id}", put(profiles::set_note))
+        .route("/users/{user_id}/profile", get(profiles::get_profile))
         .route(
             "/users/@me/channels",
             get(users::get_current_user_channels).post(users::create_dm_channel),
