@@ -74,10 +74,37 @@ pub async fn create_space(
     }
 
     let space = db::spaces::create_space(&state.db, &auth.user_id, &input).await?;
+    announce_owner_join(&state, &space.id, &auth.user_id).await;
     let mut spaces = spaces_with_metadata(&state, vec![space]).await?;
     Ok(Json(serde_json::json!({
         "data": spaces.pop().unwrap_or_default()
     })))
+}
+
+/// Tells the owner's open sessions about their new space with their own
+/// `member.join`, the event the gateway refreshes a session's spaces on;
+/// otherwise they stay deaf to it until they reconnect.
+async fn announce_owner_join(state: &AppState, space_id: &str, owner_id: &str) {
+    let Ok(user) = db::users::get_user(&state.db, owner_id).await else {
+        return;
+    };
+    let joined_at = db::members::get_member_row(&state.db, space_id, owner_id)
+        .await
+        .map(|m| m.joined_at)
+        .ok();
+    if let Some(ref dispatcher) = *state.gateway_tx.read().await {
+        let _ = dispatcher.send(GatewayBroadcast {
+            space_id: Some(space_id.to_string()),
+            target_user_ids: Some(vec![owner_id.to_string()]),
+            event: serde_json::json!({
+                "op": 0,
+                "type": "member.join",
+                "data": { "space_id": space_id, "user": user, "joined_at": joined_at }
+            }),
+            intent: "members".to_string(),
+            required_permission: None,
+        });
+    }
 }
 
 pub async fn get_space(

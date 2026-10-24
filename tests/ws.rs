@@ -1282,6 +1282,52 @@ async fn test_ws_space_joined_mid_session_receives_events() {
     assert_eq!(message["data"]["content"], "after the join");
 }
 
+/// Creating a space while connected subscribes the creator's session to it,
+/// as joining one does.
+#[tokio::test]
+async fn test_ws_space_created_mid_session_receives_events() {
+    let (server, ws_url) = spawn_test_server().await;
+    let alice = server.create_user_with_token("alice").await;
+    let (mut ws_alice, _) = connect_with(
+        &ws_url,
+        &alice.gateway_token(),
+        &["messages", "message_content", "members"],
+        None,
+    )
+    .await;
+
+    let app = server.router();
+    let req = authenticated_json_request(
+        Method::POST,
+        "/api/v1/spaces",
+        &alice.auth_header(),
+        &serde_json::json!({ "name": "Fresh" }),
+    );
+    let response = app.oneshot(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let space: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let space_id = space["data"]["id"].as_str().unwrap().to_string();
+    let channel_id = server.create_channel(&space_id, "general").await;
+
+    let app = server.router();
+    let req = authenticated_json_request(
+        Method::POST,
+        &format!("/api/v1/channels/{channel_id}/messages"),
+        &alice.auth_header(),
+        &serde_json::json!({ "content": "in my new space" }),
+    );
+    assert_eq!(app.oneshot(req).await.unwrap().status(), StatusCode::OK);
+
+    let (found, others) = recv_event_type(&mut ws_alice, "message.create", 6).await;
+    let message = found.unwrap_or_else(|| panic!("message in the new space; got {others:?}"));
+    assert_eq!(message["data"]["content"], "in my new space");
+}
+
 /// The refresh is about routing, not subscription: a client that didn't ask
 /// for the `members` intent still has its membership updated, it just doesn't
 /// see the `member.join` itself.
