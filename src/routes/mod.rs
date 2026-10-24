@@ -24,6 +24,7 @@ mod read_states;
 mod relationships;
 pub mod reports;
 pub mod roles;
+pub mod scheduled_events;
 pub mod seo;
 mod settings;
 mod soundboard;
@@ -400,6 +401,25 @@ fn api_routes(state: &AppState) -> Router<AppState> {
         .route(
             "/webhooks/{webhook_id}/{token}/messages/{message_id}",
             patch(webhooks::edit_webhook_message).delete(webhooks::delete_webhook_message),
+        )
+        // Scheduled events
+        .route(
+            "/spaces/{space_id}/events",
+            get(scheduled_events::list_events).post(scheduled_events::create_event),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}",
+            get(scheduled_events::get_event)
+                .patch(scheduled_events::update_event)
+                .delete(scheduled_events::delete_event),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}/users",
+            get(scheduled_events::list_event_users),
+        )
+        .route(
+            "/spaces/{space_id}/events/{event_id}/users/@me",
+            put(scheduled_events::add_interest).delete(scheduled_events::remove_interest),
         )
         .route(
             "/channels/{channel_id}/pins/{message_id}",

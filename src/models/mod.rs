@@ -13,6 +13,7 @@ pub mod permission;
 pub mod poll;
 pub mod presence;
 pub mod role;
+pub mod scheduled_event;
 pub mod settings;
 pub mod soundboard;
 pub mod space;

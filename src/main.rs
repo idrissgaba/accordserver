@@ -287,6 +287,15 @@ async fn run_main_server(config: Config) {
             }
         }
     });
+    // Scheduled events start and end on their own.
+    let events_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
+        loop {
+            interval.tick().await;
+            accordserver::routes::scheduled_events::tick(&events_state).await;
+        }
+    });
     let cleanup_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));

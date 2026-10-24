@@ -20,6 +20,7 @@ pub mod read_states;
 pub mod relationships;
 pub mod reports;
 pub mod roles;
+pub mod scheduled_events;
 pub mod settings;
 pub mod soundboard;
 pub mod spaces;
