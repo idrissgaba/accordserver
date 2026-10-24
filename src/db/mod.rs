@@ -24,6 +24,7 @@ pub mod scheduled_events;
 pub mod settings;
 pub mod soundboard;
 pub mod spaces;
+pub mod stickers;
 pub mod users;
 pub mod webhooks;
 

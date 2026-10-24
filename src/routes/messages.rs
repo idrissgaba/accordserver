@@ -1180,6 +1180,7 @@ pub async fn messages_to_json(
     let webhook_names = db::webhooks::usernames_for_messages(pool, &ids).await?;
     let components = db::interactions::components_for_messages(pool, &ids).await?;
     let interactions = db::interactions::interactions_for_messages(pool, &ids).await?;
+    let stickers = db::stickers::for_messages(pool, &ids).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1202,6 +1203,9 @@ pub async fn messages_to_json(
             }
             if let Some(i) = interactions.get(&row.id) {
                 json["interaction"] = i.clone();
+            }
+            if let Some(s) = stickers.get(&row.id) {
+                json["stickers"] = s.clone();
             }
             json
         })
