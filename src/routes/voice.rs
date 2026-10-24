@@ -66,7 +66,7 @@ pub async fn join_voice(
     let space_id: Option<String> = if is_dm_channel(&channel.channel_type) {
         None
     } else {
-        if channel.channel_type != "voice" {
+        if !voice::stage::is_voice_type(&channel.channel_type) {
             return Err(AppError::BadRequest("channel_not_voice".to_string()));
         }
         let sid = channel
@@ -157,6 +157,7 @@ pub async fn leave_voice(
                 self_stream: false,
                 self_video: false,
                 suppress: false,
+                request_to_speak_timestamp: None,
             };
             // Notify the space, or the DM participants when there's no space.
             broadcast_voice_state_update(&state, left_channel, vs.space_id.as_deref(), &left_state)

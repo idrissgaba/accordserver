@@ -13,4 +13,7 @@ pub struct VoiceState {
     pub self_stream: bool,
     pub self_video: bool,
     pub suppress: bool,
+    /// When this audience member asked to speak on a stage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_to_speak_timestamp: Option<String>,
 }

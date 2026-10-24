@@ -145,12 +145,14 @@ async fn auth_for(state: &AppState, user_id: &str) -> Option<AuthUser> {
 }
 
 /// The media policy of `user_id` in the space channel `channel_id`. Rights
-/// that cannot be resolved are denied.
+/// that cannot be resolved are denied. On a stage, only a session brought up
+/// to speak (`session_id`) may; a fresh join (`None`) is in the audience.
 pub async fn media_policy(
     state: &AppState,
     space_id: &str,
     channel_id: &str,
     user_id: &str,
+    session_id: Option<&str>,
 ) -> MediaPolicy {
     let (mute, deaf) = match db::members::get_member_row(&state.db, space_id, user_id).await {
         Ok(row) => (row.mute, row.deaf),
@@ -170,11 +172,14 @@ pub async fn media_policy(
             Err(_) => (false, false),
         }
     };
+    let audience = crate::voice::stage::is_stage(state, channel_id).await
+        && !session_id.is_some_and(|s| state.security.stage_speakers.contains(s));
     MediaPolicy {
         mute,
         deaf,
-        suppress: !speak,
-        stream,
+        suppress: !speak || audience,
+        // The audience shows nothing either: no camera, no screen.
+        stream: stream && !audience,
     }
 }
 
@@ -187,7 +192,7 @@ pub async fn policy_for_join(
     user_id: &str,
 ) -> MediaPolicy {
     match space_id {
-        Some(space_id) => media_policy(state, space_id, channel_id, user_id).await,
+        Some(space_id) => media_policy(state, space_id, channel_id, user_id, None).await,
         None => MediaPolicy::OPEN,
     }
 }
@@ -226,7 +231,14 @@ pub async fn sync_session(state: &AppState, current: &VoiceState) {
     else {
         return;
     };
-    let policy = media_policy(state, space_id, channel_id, &current.user_id).await;
+    let policy = media_policy(
+        state,
+        space_id,
+        channel_id,
+        &current.user_id,
+        Some(&current.session_id),
+    )
+    .await;
 
     let flags_changed = current.mute != policy.mute
         || current.deaf != policy.deaf
@@ -286,12 +298,20 @@ pub async fn refresh_member(state: &AppState, space_id: &str, user_id: &str) {
 
 /// Forgets policies of sessions that no longer exist.
 pub fn prune(state: &AppState) {
-    state.security.voice_media.retain(|session_id, _| {
+    let live = |session_id: &str| {
         state
             .voice_states
             .iter()
-            .any(|vs| vs.value().session_id == *session_id)
-    });
+            .any(|vs| vs.value().session_id == session_id)
+    };
+    state
+        .security
+        .voice_media
+        .retain(|session_id, _| live(session_id));
+    state
+        .security
+        .stage_speakers
+        .retain(|session_id| live(session_id));
 }
 
 /// Refuses a join into a full channel. Members who can move others may still
@@ -346,7 +366,7 @@ pub async fn move_member(
     if channel.space_id.as_deref() != Some(space_id) {
         return Err(AppError::NotFound("channel not found in this space".into()));
     }
-    if channel.channel_type != "voice" {
+    if !crate::voice::stage::is_voice_type(&channel.channel_type) {
         return Err(AppError::BadRequest("channel_not_voice".into()));
     }
     let target = auth_for(state, user_id)
@@ -368,7 +388,7 @@ pub async fn move_member(
         false,
         false,
     );
-    let policy = media_policy(state, space_id, channel_id, user_id).await;
+    let policy = media_policy(state, space_id, channel_id, user_id, None).await;
     let moved = record_join(state, moved, policy);
 
     if !state.test_mode {

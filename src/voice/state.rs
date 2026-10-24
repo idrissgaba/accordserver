@@ -32,6 +32,7 @@ pub fn join_voice_channel(
         self_stream,
         self_video,
         suppress: false,
+        request_to_speak_timestamp: None,
     };
 
     state
