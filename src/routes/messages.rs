@@ -1181,6 +1181,7 @@ pub async fn messages_to_json(
     let components = db::interactions::components_for_messages(pool, &ids).await?;
     let interactions = db::interactions::interactions_for_messages(pool, &ids).await?;
     let stickers = db::stickers::for_messages(pool, &ids).await?;
+    let super_reactions = db::super_reactions::for_messages(pool, &ids, current_user_id).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1206,6 +1207,9 @@ pub async fn messages_to_json(
             }
             if let Some(s) = stickers.get(&row.id) {
                 json["stickers"] = s.clone();
+            }
+            if let Some(s) = super_reactions.get(&row.id) {
+                json["super_reactions"] = s.clone();
             }
             json
         })

@@ -26,6 +26,7 @@ pub mod settings;
 pub mod soundboard;
 pub mod spaces;
 pub mod stickers;
+pub mod super_reactions;
 pub mod users;
 pub mod webhooks;
 

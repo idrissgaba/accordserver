@@ -31,6 +31,7 @@ mod settings;
 mod soundboard;
 pub mod spaces;
 mod stickers;
+mod super_reactions;
 pub mod system_messages;
 #[cfg(feature = "test-seed")]
 mod test_seed;
@@ -474,6 +475,10 @@ fn api_routes(state: &AppState) -> Router<AppState> {
         .route(
             "/channels/{channel_id}/messages/{message_id}/reactions",
             delete(reactions::remove_all_reactions),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/super-reactions/{emoji}",
+            put(super_reactions::add_super_reaction).delete(super_reactions::remove_super_reaction),
         )
         // Invites
         .route(
