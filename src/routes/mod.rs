@@ -37,6 +37,7 @@ mod test_seed;
 mod users;
 pub(crate) mod voice;
 mod webhooks;
+mod welcome_screen;
 
 use axum::middleware as axum_mw;
 use axum::routing::{delete, get, patch, post, put};
@@ -443,6 +444,10 @@ fn api_routes(state: &AppState) -> Router<AppState> {
         .route(
             "/channels/{channel_id}/stickers/{sticker_id}",
             post(stickers::send_sticker),
+        )
+        .route(
+            "/spaces/{space_id}/welcome-screen",
+            get(welcome_screen::get_welcome_screen).patch(welcome_screen::update_welcome_screen),
         )
         .route(
             "/channels/{channel_id}/pins/{message_id}",
