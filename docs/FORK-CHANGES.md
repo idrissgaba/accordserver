@@ -93,8 +93,8 @@ ticker spawned in `main.rs`.
 See [stage-channels.md](stage-channels.md). A `stage` channel joins like a
 voice channel; the audience is suppressed in LiveKit until a moderator
 (`mute_members`) brings them up. Voice states gain
-`request_to_speak_timestamp`, omitted when unset. Official clients don't list
-`stage` channels as voice, so they can't join them.
+`request_to_speak_timestamp`, omitted when unset. Official clients don't know
+the `stage` type; the server treats their joins like any other.
 
 Migration numbers in this fork: 040 polls, 041 webhooks, 042 interactions,
 043 scheduled events, 044 stickers, 045 profile extras, 046 welcome screens
