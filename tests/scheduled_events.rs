@@ -318,3 +318,26 @@ async fn the_scheduler_starts_and_ends_events() {
         .unwrap();
     assert_eq!(done.status, "completed");
 }
+
+#[tokio::test]
+async fn a_stage_can_host_an_event() {
+    let s = setup().await;
+    let (status, body) = call(
+        &s.server,
+        authenticated_json_request(
+            Method::POST,
+            &format!("/api/v1/spaces/{}/channels", s.space),
+            &s.owner.auth_header(),
+            &json!({ "name": "Talks", "type": "stage" }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let stage = body["data"]["id"].as_str().unwrap().to_string();
+    let (status, body) = create(
+        &s,
+        json!({"name": "AMA", "entity_type": "voice", "channel_id": stage, "start_time": in_hours(1)}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}

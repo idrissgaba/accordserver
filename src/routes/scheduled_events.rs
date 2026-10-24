@@ -97,7 +97,9 @@ async fn check_channel(
     let channel = db::channels::get_channel_row(&state.db, channel_id)
         .await
         .map_err(|_| AppError::BadRequest("unknown channel".into()))?;
-    if channel.space_id.as_deref() != Some(space_id) || channel.channel_type != "voice" {
+    if channel.space_id.as_deref() != Some(space_id)
+        || !crate::voice::stage::is_voice_type(&channel.channel_type)
+    {
         return Err(AppError::BadRequest(
             "a voice event takes place in a voice channel of this space".into(),
         ));
