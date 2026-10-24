@@ -1170,6 +1170,7 @@ pub async fn messages_to_json(
         db::messages::get_reactions_for_messages(pool, &ids, current_user_id).await?;
     let attachments_map = db::attachments::get_attachments_for_messages(pool, &ids).await?;
     let reply_counts = db::messages::get_thread_reply_counts(pool, &ids).await?;
+    let super_reactions = db::super_reactions::for_messages(pool, &ids, current_user_id).await?;
     Ok(rows
         .iter()
         .map(|row| {
@@ -1178,7 +1179,11 @@ pub async fn messages_to_json(
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
             let count = reply_counts.get(&row.id).copied();
-            message_row_to_json_full(row, atts, reactions_map.get(&row.id), count)
+            let mut json = message_row_to_json_full(row, atts, reactions_map.get(&row.id), count);
+            if let Some(s) = super_reactions.get(&row.id) {
+                json["super_reactions"] = s.clone();
+            }
+            json
         })
         .collect())
 }
