@@ -28,6 +28,7 @@ community server alongside the client fork
 | Profile extras: pronouns, theme colours, private notes | `feature/profile-extras` | Deployed | `migrations/045_profile_extras.sql`, `migrations/postgres/030_profile_extras.sql`, `src/db/profiles.rs`, `src/routes/profiles.rs`, `tests/profiles.rs`, `docs/profile-extras.md` |
 | Welcome screen | `feature/welcome-screen` | Deployed | `migrations/046_welcome_screens.sql`, `migrations/postgres/031_welcome_screens.sql`, `src/routes/welcome_screen.rs`, `tests/welcome_screen.rs`, `docs/welcome-screen.md` |
 | Stage channels | `feature/stage-channels` (on `feature/voice-moderation`) | Deployed | `src/voice/stage.rs`, `src/voice/moderation.rs`, `src/models/voice.rs`, `src/security.rs`, `tests/stage_channels.rs`, `docs/stage-channels.md` |
+| Super reactions | `feature/super-reactions` | Deployed | `migrations/047_super_reactions.sql`, `migrations/postgres/032_super_reactions.sql`, `src/db/super_reactions.rs`, `src/routes/super_reactions.rs`, `src/routes/messages.rs`, `tests/super_reactions.rs`, `docs/super-reactions.md` |
 
 ### Registration with an invite (`invite_only`)
 
@@ -96,9 +97,15 @@ voice channel; the audience is suppressed in LiveKit until a moderator
 `request_to_speak_timestamp`, omitted when unset. Official clients don't know
 the `stage` type; the server treats their joins like any other.
 
+### Super reactions
+
+See [super-reactions.md](super-reactions.md): own table, own routes and
+`super_reaction.*` events; plain reaction counts are unchanged, so official
+clients don't see them.
+
 Migration numbers in this fork: 040 polls, 041 webhooks, 042 interactions,
-043 scheduled events, 044 stickers, 045 profile extras, 046 welcome screens
-(Postgres 025–031). If upstream ships migrations with these numbers, renumber
+043 scheduled events, 044 stickers, 045 profile extras, 046 welcome screens,
+047 super reactions (Postgres 025–032). If upstream ships migrations with these numbers, renumber
 the fork's on the next update and note it here.
 
 ## Updating from upstream
