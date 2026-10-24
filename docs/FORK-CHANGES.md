@@ -23,6 +23,11 @@ community server alongside the client fork
 | Voice moderation enforced in LiveKit; move, disconnect, user limits | `feature/voice-moderation` | Deployed | `src/voice/moderation.rs`, `src/voice/livekit.rs`, `src/routes/members.rs`, `src/routes/voice.rs`, `src/gateway/mod.rs`, `src/security.rs`, `tests/voice_moderation.rs`, `docs/voice-moderation.md` |
 | Incoming webhooks (chat-service compatible payload) | `feature/webhooks` | Deployed | `migrations/041_webhooks.sql`, `migrations/postgres/026_webhooks.sql`, `src/models/webhook.rs`, `src/db/webhooks.rs`, `src/routes/webhooks.rs`, `tests/webhooks.rs`, `docs/webhooks.md` |
 | Slash commands, interactions, message components | `feature/interactions` | Deployed | `migrations/042_interactions.sql`, `migrations/postgres/027_interactions.sql`, `src/models/app_command.rs`, `src/db/app_commands.rs`, `src/db/interactions.rs`, `src/routes/interactions.rs`, `src/routes/applications.rs`, `tests/interactions.rs`, `docs/interactions.md` |
+| Scheduled events (start/end on their own, interested users) | `feature/scheduled-events` | Deployed | `migrations/043_scheduled_events.sql`, `migrations/postgres/028_scheduled_events.sql`, `src/models/scheduled_event.rs`, `src/db/scheduled_events.rs`, `src/routes/scheduled_events.rs`, `src/main.rs`, `tests/scheduled_events.rs`, `docs/scheduled-events.md` |
+| Stickers | `feature/stickers` | Deployed | `migrations/044_stickers.sql`, `migrations/postgres/029_stickers.sql`, `src/db/stickers.rs`, `src/routes/stickers.rs`, `src/routes/messages.rs`, `tests/stickers.rs`, `docs/stickers.md` |
+| Profile extras: pronouns, theme colours, private notes | `feature/profile-extras` | Deployed | `migrations/045_profile_extras.sql`, `migrations/postgres/030_profile_extras.sql`, `src/db/profiles.rs`, `src/routes/profiles.rs`, `tests/profiles.rs`, `docs/profile-extras.md` |
+| Welcome screen | `feature/welcome-screen` | Deployed | `migrations/046_welcome_screens.sql`, `migrations/postgres/031_welcome_screens.sql`, `src/routes/welcome_screen.rs`, `tests/welcome_screen.rs`, `docs/welcome-screen.md` |
+| Stage channels | `feature/stage-channels` (on `feature/voice-moderation`) | Deployed | `src/voice/stage.rs`, `src/voice/moderation.rs`, `src/models/voice.rs`, `src/security.rs`, `tests/stage_channels.rs`, `docs/stage-channels.md` |
 
 ### Registration with an invite (`invite_only`)
 
@@ -75,8 +80,25 @@ routes; `GET /applications/@me` also answers a bot token with the bot's own
 application. Official clients show bot answers as plain messages (no command
 picker, no buttons).
 
-Migration numbers in this fork: 040 polls, 041 webhooks, 042 interactions
-(Postgres 025–027). If upstream ships migrations with these numbers, renumber
+### Scheduled events, stickers, profile extras, welcome screen
+
+See [scheduled-events.md](scheduled-events.md), [stickers.md](stickers.md),
+[profile-extras.md](profile-extras.md) and [welcome-screen.md](welcome-screen.md).
+All are new routes and tables; messages gain a `stickers` field. Official
+clients ignore them. Scheduled events are started and ended by a 15-second
+ticker spawned in `main.rs`.
+
+### Stage channels
+
+See [stage-channels.md](stage-channels.md). A `stage` channel joins like a
+voice channel; the audience is suppressed in LiveKit until a moderator
+(`mute_members`) brings them up. Voice states gain
+`request_to_speak_timestamp`, omitted when unset. Official clients don't list
+`stage` channels as voice, so they can't join them.
+
+Migration numbers in this fork: 040 polls, 041 webhooks, 042 interactions,
+043 scheduled events, 044 stickers, 045 profile extras, 046 welcome screens
+(Postgres 025–031). If upstream ships migrations with these numbers, renumber
 the fork's on the next update and note it here.
 
 ## Updating from upstream
