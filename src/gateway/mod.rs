@@ -1363,7 +1363,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                     // DM calls have no channel type or timeout to
                                                     // check; participation was enough.
                                                     if !is_dm {
-                                                        if channel.channel_type != "voice" {
+                                                        if !crate::voice::stage::is_voice_type(&channel.channel_type) {
                                                             continue;
                                                         }
                                                         // Timed-out members cannot connect to voice.
@@ -1460,6 +1460,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                             self_stream: false,
                                                             self_video: false,
                                                             suppress: false,
+                                                            request_to_speak_timestamp: None,
                                                         };
                                                         // Routed to the space, or to the DM
                                                         // participants when there is none — a
@@ -1519,6 +1520,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 self_stream: false,
                 self_video: false,
                 suppress: false,
+                request_to_speak_timestamp: None,
             };
             // Reaches DM participants as well as spaces; dropping the socket
             // mid-call used to leave the other side of a DM call showing a

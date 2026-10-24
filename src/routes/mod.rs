@@ -572,6 +572,10 @@ fn api_routes(state: &AppState) -> Router<AppState> {
             "/channels/{channel_id}/voice-status",
             get(voice::get_voice_status),
         )
+        .route(
+            "/spaces/{space_id}/voice-states/{user_id}",
+            patch(crate::voice::stage::update_stage_voice_state),
+        )
         .route("/channels/{channel_id}/voice/join", post(voice::join_voice))
         .route(
             "/channels/{channel_id}/voice/leave",

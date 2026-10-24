@@ -58,6 +58,8 @@ pub struct SecurityState {
     /// The voice-moderation policy LiveKit currently enforces, per voice
     /// session id.
     pub voice_media: dashmap::DashMap<String, crate::voice::moderation::MediaPolicy>,
+    /// Voice sessions brought up to speak on a stage.
+    pub stage_speakers: dashmap::DashSet<String>,
 }
 
 impl Default for SecurityState {
@@ -70,6 +72,7 @@ impl Default for SecurityState {
             upload_limits: dashmap::DashMap::new(),
             voice_cleanup: tokio::sync::Mutex::new(()),
             voice_media: dashmap::DashMap::new(),
+            stage_speakers: dashmap::DashSet::new(),
         }
     }
 }
