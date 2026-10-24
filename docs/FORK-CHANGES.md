@@ -29,6 +29,8 @@ community server alongside the client fork
 | Welcome screen | `feature/welcome-screen` | Deployed | `migrations/046_welcome_screens.sql`, `migrations/postgres/031_welcome_screens.sql`, `src/routes/welcome_screen.rs`, `tests/welcome_screen.rs`, `docs/welcome-screen.md` |
 | Stage channels | `feature/stage-channels` (on `feature/voice-moderation`) | Deployed | `src/voice/stage.rs`, `src/voice/moderation.rs`, `src/models/voice.rs`, `src/security.rs`, `tests/stage_channels.rs`, `docs/stage-channels.md` |
 | Super reactions | `feature/super-reactions` | Deployed | `migrations/047_super_reactions.sql`, `migrations/postgres/032_super_reactions.sql`, `src/db/super_reactions.rs`, `src/routes/super_reactions.rs`, `src/routes/messages.rs`, `tests/super_reactions.rs`, `docs/super-reactions.md` |
+| Fix: listing pinned messages panicked (missing `title` column) | `fix/pinned-messages` | Deployed | `src/db/messages.rs`, `tests/pins.rs` |
+| Fix: a new space's creator got none of its live events until reconnecting | `fix/space-create-subscribe` | Deployed | `src/routes/spaces.rs`, `tests/ws.rs` |
 
 ### Registration with an invite (`invite_only`)
 
