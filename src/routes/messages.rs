@@ -878,7 +878,26 @@ pub async fn pin_message(
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_channel_permission(&state.db, &channel_id, &auth, "manage_messages").await?;
+    let was_pinned = db::messages::get_message_row(&state.db, &message_id)
+        .await
+        .map(|m| m.pinned)
+        .unwrap_or(false);
     db::messages::pin_message(&state.db, &channel_id, &message_id, state.db_is_postgres).await?;
+    // Tell the channel, as other chat apps do — once per pin, not on repeats.
+    if !was_pinned {
+        if let Ok(channel) = db::channels::get_channel_row(&state.db, &channel_id).await {
+            if let Some(space_id) = channel.space_id.as_deref() {
+                super::system_messages::broadcast_pin_message(
+                    &state,
+                    &channel_id,
+                    space_id,
+                    &auth.user_id,
+                    &message_id,
+                )
+                .await;
+            }
+        }
+    }
     Ok(Json(serde_json::json!({ "data": null })))
 }
 
