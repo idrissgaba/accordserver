@@ -388,6 +388,22 @@ pub async fn create_system_message(
     get_message_row(pool, &id).await
 }
 
+/// Points [message_id] at [reference_id] as its `reply_to` (used by system
+/// messages that talk about another message, e.g. a pin) and returns the
+/// updated row.
+pub async fn set_message_reference(
+    pool: &AnyPool,
+    message_id: &str,
+    reference_id: &str,
+) -> Result<MessageRow, AppError> {
+    sqlx::query(&super::q("UPDATE messages SET reply_to = ? WHERE id = ?"))
+        .bind(reference_id)
+        .bind(message_id)
+        .execute(pool)
+        .await?;
+    get_message_row(pool, message_id).await
+}
+
 pub async fn update_message(
     pool: &AnyPool,
     message_id: &str,

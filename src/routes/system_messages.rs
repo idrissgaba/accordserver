@@ -169,3 +169,66 @@ async fn revoke_introduction(
     .await?;
     Ok(())
 }
+
+/// Posts a "pinned a message" system message in [channel_id] on behalf of
+/// [user_id], referencing the pinned message as a reply so clients can show
+/// and jump to it, and broadcasts it via the gateway. DM channels have no
+/// space and get no system message. Failures are logged, never propagated:
+/// the pin itself already succeeded.
+pub async fn broadcast_pin_message(
+    state: &AppState,
+    channel_id: &str,
+    space_id: &str,
+    user_id: &str,
+    pinned_message_id: &str,
+) {
+    let msg = match db::messages::create_system_message(
+        &state.db,
+        channel_id,
+        user_id,
+        space_id,
+        "pinned a message to this channel.",
+        "pin",
+    )
+    .await
+    {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(
+                "system message: failed to create pin message in channel {}: {:?}",
+                channel_id,
+                e
+            );
+            return;
+        }
+    };
+    let msg = match db::messages::set_message_reference(&state.db, &msg.id, pinned_message_id).await
+    {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(
+                "system message: failed to reference pinned message {} from {}: {:?}",
+                pinned_message_id,
+                msg.id,
+                e
+            );
+            msg
+        }
+    };
+
+    let json = message_row_to_json(&msg);
+    if let Some(ref dispatcher) = *state.gateway_tx.read().await {
+        let event = serde_json::json!({
+            "op": 0,
+            "type": "message.create",
+            "data": json
+        });
+        let _ = dispatcher.send(GatewayBroadcast {
+            space_id: Some(space_id.to_string()),
+            target_user_ids: None,
+            event,
+            intent: "messages".to_string(),
+            required_permission: None,
+        });
+    }
+}
